@@ -7,13 +7,22 @@
 #define TFT_SPI_MODE          SPI_MODE0
 #define TFT_SPI_HOST          SPI2_HOST
 
-#define WIFI_SSID             "xinyuandianzi"
-#define WIFI_PASSWORD         "AA15994823428"
+//#define CUSTOM_TIMEZONE "NZST-12NZDT,M9.5.0,M4.1.0/3"
+//#define CUSTOM_TIMEZONE_NAME "Queenstown"
+//#define CUSTOM_TIMEZONE "PST8PDT,M3.2.0,M11.1.0"
+//#define CUSTOM_TIMEZONE_NAME "Oakland"
+#define CUSTOM_TIMEZONE "CST-8"
+#define CUSTOM_TIMEZONE_NAME "Shenzhen"
+#define DISPLAY_TIMEZONE_NAME 1
+
+#define WIFI_SSID             "ConfigYourWifiIn_pins_config.h"
+#define WIFI_PASSWORD         "WifiPasssword"
 
 #define WIFI_CONNECT_WAIT_MAX (30 * 1000)
 
-#define NTP_SERVER1           "pool.ntp.org"
-#define NTP_SERVER2           "time.nist.gov"
+#define NTP_SERVER1           "192.168.1.70"
+#define NTP_SERVER2           "pool.ntp.org"
+#define NTP_SYNC_INTERVAL_SEC 60
 #define GMT_OFFSET_SEC        0
 #define DAY_LIGHT_OFFSET_SEC  0
 

@@ -1,13 +1,17 @@
+#include <lvgl.h>
+
+#include "pins_config.h"
 #include "factory_gui.h"
 #include "Arduino.h"
 #include "SD_MMC.h"
 #include "lvgl.h"
 #include <WiFi.h>
 #include <SD.h>
+#include <String.h>
 
 #define CLOCK_NORMAL 0
 #define CLOCK_FLIP   1
-#define CLOCK_DEMO   CLOCK_FLIP
+#define CLOCK_DEMO   CLOCK_NORMAL
 
 LV_FONT_DECLARE(font_Alibaba);
 LV_IMG_DECLARE(lilygo1_gif);
@@ -204,12 +208,14 @@ void ui_begin()
     lv_obj_t *hour_cout = lv_obj_create(main_cout);
     lv_obj_set_size(hour_cout, 140, 140);
     lv_obj_align(hour_cout, LV_ALIGN_LEFT_MID, 40, 0);
+    lv_obj_set_style_border_width(hour_cout, 0, 0);
     lv_obj_set_style_bg_color(hour_cout, UI_FRAME_COLOR, 0);
     lv_obj_clear_flag(hour_cout, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *min_cout = lv_obj_create(main_cout);
     lv_obj_set_size(min_cout, 140, 140);
     lv_obj_align_to(min_cout, hour_cout, LV_ALIGN_OUT_RIGHT_MID, 50, 0);
+    lv_obj_set_style_border_width(min_cout, 0, 0);
     lv_obj_set_style_bg_color(min_cout, UI_FRAME_COLOR, 0);
     lv_obj_clear_flag(min_cout, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -217,8 +223,33 @@ void ui_begin()
     lv_obj_set_size(sec_cout, 140, 140);
     // lv_obj_align(sec_cout, LV_ALIGN_CENTER, 85, 0);
     lv_obj_align_to(sec_cout, min_cout, LV_ALIGN_OUT_RIGHT_MID, 50, 0);
+    lv_obj_set_style_border_width(sec_cout, 0, 0);
     lv_obj_set_style_bg_color(sec_cout, UI_FRAME_COLOR, 0);
     lv_obj_clear_flag(sec_cout, LV_OBJ_FLAG_SCROLLABLE);
+
+    #ifdef CUSTOM_TIMEZONE_NAME
+    lv_obj_t *ctz_text = lv_label_create(main_cout);
+    lv_obj_align(ctz_text, LV_ALIGN_CENTER, 0, 68);
+    lv_obj_set_style_text_font(ctz_text, &lv_font_montserrat_24, 0);
+    lv_label_set_text(ctz_text, CUSTOM_TIMEZONE_NAME);
+    lv_obj_set_style_text_color(ctz_text, UI_FONT_COLOR, 0);
+    #elif DISPLAY_TIMEZONE_NAME
+    if(timezone_name[0] != '\0') {
+      lv_obj_t *ctz_text = lv_label_create(main_cout);
+      lv_obj_align(ctz_text, LV_ALIGN_CENTER, 0, 68);
+      lv_obj_set_style_text_font(ctz_text, &lv_font_montserrat_24, 0);
+      String display_name = timezone_name;
+      int index_of_slash = display_name.indexOf("/");
+      if(index_of_slash > -1) {
+        display_name = display_name.substring(index_of_slash + 1);
+      }
+      display_name.replace("_", " ");
+      char display_charbuf[display_name.length() + 1];
+      display_name.toCharArray(display_charbuf, display_name.length() + 1);
+      lv_label_set_text(ctz_text, display_charbuf);
+      lv_obj_set_style_text_color(ctz_text, UI_FONT_COLOR, 0);
+    }
+    #endif
 
     lv_obj_t *seg_text = lv_label_create(main_cout);
     lv_obj_align(seg_text, LV_ALIGN_CENTER, -100, -12);
@@ -256,17 +287,17 @@ void ui_begin()
     lv_obj_add_event_cb(sec_text, update_text_subscriber_cb, LV_EVENT_MSG_RECEIVED, NULL);
     lv_msg_subsribe_obj(MSG_NEW_SEC, sec_text, (void *)"%02d");
 
-    static lv_style_t style_line;
-    lv_style_init(&style_line);
-    lv_style_set_line_width(&style_line, 4);
-    lv_style_set_line_color(&style_line, UI_BG_COLOR);
-    lv_style_set_line_rounded(&style_line, true);
+    // static lv_style_t style_line;
+    // lv_style_init(&style_line);
+    // lv_style_set_line_width(&style_line, 4);
+    // lv_style_set_line_color(&style_line, UI_BG_COLOR);
+    // lv_style_set_line_rounded(&style_line, true);
 
-    lv_obj_t *line;
-    line = lv_line_create(main_cout);
-    lv_line_set_points(line, line_points, 2);
-    lv_obj_add_style(line, &style_line, 0);
-    lv_obj_center(line);
+    // lv_obj_t *line;
+    // line = lv_line_create(main_cout);
+    // lv_line_set_points(line, line_points, 2);
+    // lv_obj_add_style(line, &style_line, 0);
+    // lv_obj_center(line);
 #endif
 
     /* page 2 */
@@ -444,7 +475,7 @@ static void update_text_subscriber_cb_demo1(void *s, lv_msg_t *msg)
         set_flip_time_anim(hour, minute, second);
     }
 }
-#elif
+#elif (CLOCK_DEMO == CLOCK_NORMAL)
 static void update_text_subscriber_cb(lv_event_t *e)
 {
     lv_obj_t *label = lv_event_get_target(e);

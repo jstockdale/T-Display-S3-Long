@@ -3,6 +3,7 @@
 #include "AXS15231B.h"
 #include "WiFi.h"
 #include "factory_gui.h"
+#include "esp_sntp.h"
 #include "sntp.h"
 #include "time.h"
 #include "zones.h"
@@ -24,8 +25,8 @@ PowersSY6970      PMU;
 // disp_drv.full_refresh must be 1
 //================================
 
-const char *ntpServer1 = "pool.ntp.org";
-const char *ntpServer2 = "time.nist.gov";
+const char *ntpServer1 = "192.168.1.70";
+const char *ntpServer2 = "pool.ntp.org";
 
 static lv_disp_draw_buf_t draw_buf;
 static lv_color_t        *buf;
@@ -62,6 +63,7 @@ void setTimezone();
 static uint32_t last_tick;
 struct tm       timeinfo;
 uint32_t        cycleInterval = 0;
+char timezone_name[255] = { 0 };
 
 void my_disp_flush(lv_disp_drv_t *disp, const lv_area_t *area,
                    lv_color_t *color_p)
@@ -167,7 +169,9 @@ void setup()
         Serial.println(" MB");
     }
 
-
+    Serial.printf("Setting NTP Sync Interval to %d seconds.", NTP_SYNC_INTERVAL_SEC);
+    Serial.println();
+    sntp_set_sync_interval(NTP_SYNC_INTERVAL_SEC * 1000);
     configTime(GMT_OFFSET_SEC, DAY_LIGHT_OFFSET_SEC, NTP_SERVER1, NTP_SERVER2);
 
     axs15231_init();
@@ -229,7 +233,7 @@ void            loop()
     }
 
     if (millis() - last_tick > 100) {
-        if (getLocalTime(&timeinfo, 2)) {
+        if (getLocalTimeHandler(&timeinfo, 2)) {
             lv_msg_send(MSG_NEW_HOUR, &timeinfo.tm_hour);
             lv_msg_send(MSG_NEW_MIN, &timeinfo.tm_min);
             lv_msg_send(MSG_NEW_SEC, &timeinfo.tm_sec);
@@ -448,7 +452,7 @@ sQIwJonMaAFi54mrfhfoFNZEfuNMSQ6/bIBiNLiyoX46FohQvKeIoJ99cx7sUkFN
 )string_literal";
 
     WiFiClientSecure *client = new WiFiClientSecure;
-    String timezone;
+    String timezone = "";
     if (client) {
         client->setCACert(rootCACertificate);
         HTTPClient https;
@@ -472,11 +476,12 @@ sQIwJonMaAFi54mrfhfoFNZEfuNMSQ6/bIBiNLiyoX46FohQvKeIoJ99cx7sUkFN
         delete client;
     }
     for (uint32_t i = 0; i < sizeof(zones); i++) {
-        if (timezone == "None") {
+        if (timezone == "" || timezone == "None") {
             timezone = "CST-8";
             break;
         }
         if (timezone == zones[i].name) {
+            timezone.toCharArray(timezone_name, timezone.length() + 1 < 255 ? timezone.length() + 1 : 255);
             timezone = zones[i].zones;
             break;
         }
@@ -490,4 +495,19 @@ sQIwJonMaAFi54mrfhfoFNZEfuNMSQ6/bIBiNLiyoX46FohQvKeIoJ99cx7sUkFN
     } else {
       Serial.println("failed to fetch timezone");
     }
+}
+
+bool getLocalTimeHandler(struct tm * info, uint32_t ms)
+{
+    uint32_t start = millis();
+    time_t now;
+    while((millis()-start) <= ms) {
+        time(&now);
+        localtime_r(&now, info);
+        if(info->tm_year > (2016 - 1900)){
+            return true;
+        }
+        delay(1);
+    }
+    return false;
 }

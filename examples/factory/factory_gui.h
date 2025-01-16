@@ -1,8 +1,8 @@
 #pragma once
 
 #define UI_BG_COLOR    lv_color_black()
-#define UI_FRAME_COLOR lv_color_hex(0x282828)
-#define UI_FONT_COLOR  lv_color_white()
+#define UI_FRAME_COLOR lv_color_black()
+#define UI_FONT_COLOR  lv_color_hex(0xaa0000)
 #define UI_PAGE_COUNT  3
 
 #define MSG_NEW_HOUR   1
@@ -15,3 +15,5 @@
 
 void ui_begin();
 void ui_switch_page(void);
+
+extern char timezone_name[255];
