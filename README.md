@@ -3,11 +3,11 @@
 ## Enhanced Clock
 Improvements by @jstockdale
 
-(1) Checkout enhanced_clock branch
-(2) Put lib/ subfolders in ~/Arduino/libraries
-(3) Update pins_config.h – choose if you want to use wifi to auto-detect timezone or pick custom timezones, also hardcode your home wifi so you don't have to use Esptouch
-(4) Build with Arduino IDE (You should also be able to build with vs code / platformio if you prefer, but I haven't been)
-(5) If you're using a fixed wifi network: Erase your T-Display-S3-Long before flashing!!! This is important to clear config from the factory used for testing. Otherwise the hardcoded wifi network won't work and it'll fail to connect to the factory network instead.
+(1) Checkout enhanced_clock branch<br/>
+(2) Put lib/ subfolders in ~/Arduino/libraries<br/>
+(3) Update pins_config.h – choose if you want to use wifi to auto-detect timezone or pick custom timezones, also hardcode your home wifi so you don't have to use Esptouch<br/>
+(4) Build with Arduino IDE (You should also be able to build with vs code / platformio if you prefer, but I haven't been)<br/>
+(5) If you're using a fixed wifi network: Erase your T-Display-S3-Long before flashing!!! This is important to clear config from the factory used for testing. Otherwise the hardcoded wifi network won't work and it'll fail to connect to the factory network instead.<br/>
 
 ## 1️⃣Product
 
