@@ -16,6 +16,7 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <SD.h>
+#include "HardwareSerial.h"
 #include "freertos/semphr.h"
 SemaphoreHandle_t xSemaphore = NULL;
 PowersSY6970      PMU;
@@ -34,6 +35,15 @@ static lv_color_t        *buf1;
 
 uint8_t ALS_ADDRESS = 0x3B;
 
+//#define SERIAL_TX_PIN 43
+//#define SERIAL_RX_PIN 44
+//#define SERIAL_TX_PIN 14
+//#define SERIAL_RX_PIN 15
+
+//HardwareSerial Serial0 ( 1 );
+
+char serial_buffer[2550] = { 0 };
+int serial_buffer_idx = 0;
 
 #define AXS_TOUCH_ONE_POINT_LEN 6
 #define AXS_TOUCH_BUF_HEAD_LEN  2
@@ -136,6 +146,8 @@ void setup()
 
     Serial.begin(115200);
     Serial.println("sta\n");
+    Serial0.begin(SERIAL_BAUD_RATE);
+    delay(200);
 
     pinMode(PIN_BAT_VOLT, ANALOG);
 
@@ -267,6 +279,12 @@ void            loop()
             setTimezone();
             ui_begin();
         }
+    }
+    if (flag_bl) {
+      getSerialInput();
+      while (Serial.available() > 0) {
+        Serial0.write(Serial.read());
+      }
     }
 }
 
@@ -511,3 +529,156 @@ bool getLocalTimeHandler(struct tm * info, uint32_t ms)
     }
     return false;
 }
+
+String getSerialInput() {
+  int bytes_received = 0;
+  int bytes_available = 0;
+  int serial_line_count = 0;
+  String command_line = "";
+  char command_buffer[2550] = { 0 };
+  
+  //memset(command_buffer, '\0', 2550);
+
+  if (Serial0.available() > 0 && serial_buffer_idx < 2550) {
+    bytes_available = Serial0.available();
+    //Serial.println("Should have bytes available: " + bytes_available);
+    int bytes_to_read = bytes_available < (2549 - serial_buffer_idx) ? bytes_available : (2549 - serial_buffer_idx);
+    bytes_received = Serial0.readBytes(&(serial_buffer[serial_buffer_idx]), bytes_to_read);
+
+    // Echo what we just got to the terminal
+    for (int i = serial_buffer_idx; i < serial_buffer_idx + bytes_received; i++) {
+      // Support backspace
+      if (serial_buffer[i] == '\x7f') {
+        // j starts at i + 1 which is the next
+        // valid character. We skip copying the
+        // backspace Ox7f character.
+        for (int j = i + 1; j < 2550; j++) {
+          if (j <= 1) {
+            break;
+          } else if (j == 2549 || j > serial_buffer_idx + bytes_received) {
+            serial_buffer[j] = '\0';
+          } else {
+            serial_buffer[j-2] = serial_buffer[j];
+          }
+        }
+        if (serial_buffer_idx > 0) {
+          Serial.print('\b');
+          Serial.print(' ');
+          Serial.print('\b');
+        }
+        // This is kinda weird because we decrement serial_buffer_idx ...
+        // there's a better way to do this I'm sure. TODO(jstockdale): Fix me!
+        serial_buffer_idx = (serial_buffer_idx >= 1) ? serial_buffer_idx - 2 : (bytes_received == 1) ? -1 : 0;
+        // send cursor back on serial console, blank previous character, send cursor back once more
+      } else {
+        Serial.print(serial_buffer[i]);
+      }
+    }
+
+    // char received[255] = { 0 };
+    // for(int i = 0; i < bytes_received; ++i) {
+    //   received[i] = serial_buffer[serial_buffer_idx + i];
+    //   if(i >= 254) {
+    //     received[254] = '\0';
+    //     break;
+    //   }
+    // }
+
+    serial_buffer_idx += bytes_received;
+    
+    if (serial_buffer_idx < 2549) {
+      //serial_buffer[serial_buffer_idx+1] = '\0';
+    } else if (serial_buffer_idx >= 2549) {
+      //Serial0.println("Serial buffer overrun?");
+      Serial.println("Serial buffer overrun?");
+    }
+    //Serial.println("Received bytes over serial: " + String(bytes_received));
+    //Serial.print(received);
+//    Serial0.println("Buffer: " + String(serial_buffer));
+    //Serial.println("Buffer idx: " + String(serial_buffer_idx));
+  }
+
+  int index_of_newline = -1;
+
+  for (int i = 0; i < serial_buffer_idx; i++) {
+    if (serial_buffer[i] == '\n') {
+      ++serial_line_count;
+    }
+    
+    // This is mind boggling that we sometimes
+    // just get \r and not \n and also not \r\n ... 
+    // but hey. why not. :D I inspected the hex values
+    // and this is definitely what's coming over the line.
+    // We try to handle all of the possible combinations.
+    if (serial_buffer[i] == '\n' || serial_buffer[i] == '\r') {
+      if (index_of_newline == -1) {
+        if (serial_buffer[i] == '\r' && serial_buffer[i+1] == '\n') {
+          index_of_newline = i + 1;
+        } else {
+          index_of_newline = i;
+        }
+        //Serial.println("Found \"newline\" at index: " + String(index_of_newline));
+      }
+    }
+    if (i == 2549) {
+      command_buffer[i] = '\0';
+    } else {
+      command_buffer[i] = serial_buffer[i];
+    }
+  }
+  
+  command_line = command_buffer;
+
+  // if (bytes_received > 0) {
+  //   Serial.println("Serial line count: " + String(serial_line_count));
+  //   Serial.println("Serial buffer idx: " + String(serial_buffer_idx));
+  // }
+
+  if (index_of_newline > -1) {
+    // if we got a \r with a \n, treat the \n as the correct newline
+    if (serial_buffer[index_of_newline] == '\r' && serial_buffer[index_of_newline+1] == '\n') {
+      ++index_of_newline;
+    }
+
+    if (serial_line_count > 30 || serial_buffer_idx > 2295) {
+      // Move the unconsumed portion of the buffer over
+      // and zero extra bytes.
+      //Serial.println("Removing bytes from buffer: " + String(index_of_newline));
+      for (int i = index_of_newline + 1; i < 2550; ++i) {
+        // Copy any characters we have after the newline, if they exist
+        serial_buffer[i - (index_of_newline + 1)] = serial_buffer[i];
+        serial_buffer[i] = '\0';
+      }
+
+      --serial_line_count;
+
+      // make sure to set correct buffer index for remaining data
+      serial_buffer_idx = serial_buffer_idx - (index_of_newline + 1);
+
+      //Serial.println("New buffer idx: " + String(serial_buffer_idx));
+      
+      if (serial_buffer_idx < 1275) {
+        lv_delay_ms(100);
+      } else if (serial_buffer_idx < 1575) {
+        lv_delay_ms(33);
+      }
+    }
+
+    //if (command_line != "\n") command_line.trim();
+  } else if (index_of_newline == -1 && serial_buffer_idx == 2549) {
+    // flush buffer if we're full; don't let it overrun
+    //Serial0.println("Serial buffer full! Processing command and flushing buffer.");
+    Serial.println("Serial buffer full! Processing command and flushing buffer.");
+    serial_buffer_idx = 0;
+    for (int i = 0; i < 2550; ++i) {
+      serial_buffer[i] = '\0';
+    }
+  } else {
+    command_line = "";
+  }
+  if (bytes_received > 0) {
+    update_serial_display();
+  };
+  return command_line;
+}
+

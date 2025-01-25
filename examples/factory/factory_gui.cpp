@@ -26,6 +26,7 @@ LV_IMG_DECLARE(gif_78);
 LV_IMG_DECLARE(gif_89);
 LV_IMG_DECLARE(gif_90);
 
+
 #if (CLOCK_DEMO == CLOCK_NORMAL)
 static lv_point_t line_points[] = {
     {-600, 0},
@@ -34,6 +35,7 @@ static lv_point_t line_points[] = {
 static void      update_text_subscriber_cb(lv_event_t *e);
 #endif
 static void      update_text_subscriber_cb_demo1(void *s, lv_msg_t *msg);
+static void      update_serial_subscriber_cb(lv_event_t *e);
 static void      update_touch_point_subscriber_cb(lv_event_t *e);
 static void      otg_btn_subscriber_cb(lv_event_t *e);
 static void      otg_btn_cd(lv_event_t *event);
@@ -170,14 +172,15 @@ void ui_begin()
     lv_obj_t *tv2 = lv_tileview_add_tile(dis, 0, 1, LV_DIR_VER);
     lv_obj_t *tv3 = lv_tileview_add_tile(dis, 0, 2, LV_DIR_VER);
     lv_obj_t *tv4 = lv_tileview_add_tile(dis, 0, 3, LV_DIR_VER);
+    lv_obj_t *tv5 = lv_tileview_add_tile(dis, 0, 4, LV_DIR_VER);
 
 #if (CLOCK_DEMO == CLOCK_FLIP)          // demo1
-    img1 = lv_gif_create(tv1);
-    img2 = lv_gif_create(tv1);
-    img3 = lv_gif_create(tv1);
-    img4 = lv_gif_create(tv1);
-    img5 = lv_gif_create(tv1);
-    img6 = lv_gif_create(tv1);
+    img1 = lv_gif_create(tv2);
+    img2 = lv_gif_create(tv2);
+    img3 = lv_gif_create(tv2);
+    img4 = lv_gif_create(tv2);
+    img5 = lv_gif_create(tv2);
+    img6 = lv_gif_create(tv2);
 
     lv_gif_set_src(img1, set_anim_src(9));
     lv_gif_set_src(img2, set_anim_src(9));
@@ -198,7 +201,7 @@ void ui_begin()
     lv_msg_subsribe(MSG_NEW_SEC, update_text_subscriber_cb_demo1, NULL);
 #else
     /* page 1 */
-    lv_obj_t *main_cout = lv_obj_create(tv1);
+    lv_obj_t *main_cout = lv_obj_create(tv2);
     lv_obj_set_style_radius(main_cout, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_size(main_cout, LV_PCT(100), LV_PCT(100));
     lv_obj_clear_flag(main_cout, LV_OBJ_FLAG_SCROLLABLE);
@@ -301,9 +304,9 @@ void ui_begin()
 #endif
 
     /* page 2 */
-    lv_obj_t *log_gif = lv_gif_create(tv2);
-    lv_gif_set_src(log_gif, &lilygo1_gif);
-    lv_obj_center(log_gif);
+    // lv_obj_t *log_gif = lv_gif_create(tv2);
+    // lv_gif_set_src(log_gif, &lilygo1_gif);
+    // lv_obj_center(log_gif);
 
     /* page 3 */
     lv_obj_t       *debug_label = lv_label_create(tv3);
@@ -422,6 +425,18 @@ void ui_begin()
     lv_obj_align_to(label, btn, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_event_cb(btn, wifi_config_event_handler, LV_EVENT_CLICKED, label);
     lv_obj_set_pos(btn, 205, 120);
+
+    /* page 5 */
+    lv_obj_t *serial_label;
+    serial_label = lv_label_create(tv1);
+    lv_label_set_long_mode(serial_label, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(serial_label, LV_PCT(100));
+    lv_obj_set_style_text_color(serial_label, UI_FONT_COLOR, LV_PART_MAIN);
+    lv_label_set_text_fmt(serial_label, "Serial monitor ready ... (%d baud)", SERIAL_BAUD_RATE);
+    lv_obj_add_event_cb(serial_label, update_serial_subscriber_cb, LV_EVENT_MSG_RECEIVED, NULL);
+    lv_msg_subsribe_obj(MSG_NEW_SERIAL, serial_label, NULL);
+    lv_obj_align(serial_label, LV_ALIGN_BOTTOM_MID, 0, 0);
+    //lv_obj_align(serial_label, LV_ALIGN_TOP_MID, 0, 0);
 }
 
 #include <XPowersLib.h>
@@ -450,7 +465,9 @@ static void sleep_btn_cd(lv_event_t *event)
     boardSleep();
 }
 
-
+void update_serial_display() {
+    lv_msg_send(MSG_NEW_SERIAL, NULL);
+}
 
 #if (CLOCK_DEMO == CLOCK_FLIP)
 static void update_text_subscriber_cb_demo1(void *s, lv_msg_t *msg)
@@ -487,6 +504,17 @@ static void update_text_subscriber_cb(lv_event_t *e)
     lv_label_set_text_fmt(label, fmt, *v);
 }
 #endif
+
+static void update_serial_subscriber_cb(lv_event_t *e)
+{
+    lv_obj_t *label = lv_event_get_target(e);
+    //lv_msg_t *m = lv_event_get_msg(e);
+
+    //const char *fmt = (const char *)lv_msg_get_user_data(m);
+    //const char *v = (const char *)lv_msg_get_payload(m);
+
+    lv_label_set_text_static(label, (const char *)&serial_buffer);
+}
 
 static void update_touch_point_subscriber_cb(lv_event_t *e)
 {

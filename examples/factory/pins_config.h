@@ -7,16 +7,18 @@
 #define TFT_SPI_MODE          SPI_MODE0
 #define TFT_SPI_HOST          SPI2_HOST
 
+#define SERIAL_BAUD_RATE        115200
+
 //#define CUSTOM_TIMEZONE "NZST-12NZDT,M9.5.0,M4.1.0/3"
 //#define CUSTOM_TIMEZONE_NAME "Queenstown"
 //#define CUSTOM_TIMEZONE "PST8PDT,M3.2.0,M11.1.0"
 //#define CUSTOM_TIMEZONE_NAME "Oakland"
-#define CUSTOM_TIMEZONE "CST-8"
-#define CUSTOM_TIMEZONE_NAME "Shenzhen"
+//#define CUSTOM_TIMEZONE "CST-8"
+//#define CUSTOM_TIMEZONE_NAME "Shenzhen"
 #define DISPLAY_TIMEZONE_NAME 1
 
-#define WIFI_SSID             "ConfigYourWifiIn_pins_config.h"
-#define WIFI_PASSWORD         "WifiPasssword"
+#define WIFI_SSID             "Sloth Country Manor"
+#define WIFI_PASSWORD         "SlothLovesYou"
 
 #define WIFI_CONNECT_WAIT_MAX (30 * 1000)
 
