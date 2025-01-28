@@ -2,7 +2,7 @@
 
 #define UI_BG_COLOR    lv_color_black()
 #define UI_FRAME_COLOR lv_color_black()
-#define UI_FONT_COLOR  lv_color_hex(0x66ff66)
+#define UI_FONT_COLOR  lv_color_white() //lv_color_hex(0x66ff66)
 #define UI_PAGE_COUNT  4
 
 #define MSG_NEW_HOUR   1

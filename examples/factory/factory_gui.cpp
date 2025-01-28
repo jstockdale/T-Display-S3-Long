@@ -513,6 +513,7 @@ static void update_serial_subscriber_cb(lv_event_t *e)
     //const char *fmt = (const char *)lv_msg_get_user_data(m);
     //const char *v = (const char *)lv_msg_get_payload(m);
 
+    lv_label_set_recolor(label, true);
     lv_label_set_text_static(label, (const char *)&serial_buffer);
 }
 

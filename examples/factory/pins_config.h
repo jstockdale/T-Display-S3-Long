@@ -7,7 +7,11 @@
 #define TFT_SPI_MODE          SPI_MODE0
 #define TFT_SPI_HOST          SPI2_HOST
 
-#define SERIAL_BAUD_RATE        115200
+#define SERIAL_BAUD_RATE               115200
+#define SERIAL_BYTES_PER_READ          128
+#define SERIAL_MAX_BYTES_PER_READ      1024
+#define SERIAL_RX_BUFFER_SIZE          2048
+#define SERIAL_BUFFER_ACCEL_THRESHOLD  256
 
 //#define CUSTOM_TIMEZONE "NZST-12NZDT,M9.5.0,M4.1.0/3"
 //#define CUSTOM_TIMEZONE_NAME "Queenstown"

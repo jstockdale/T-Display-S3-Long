@@ -146,6 +146,7 @@ void setup()
 
     Serial.begin(115200);
     Serial.println("sta\n");
+    Serial0.setRxBufferSize(SERIAL_RX_BUFFER_SIZE);
     Serial0.begin(SERIAL_BAUD_RATE);
     delay(200);
 
@@ -275,15 +276,18 @@ void            loop()
             digitalWrite(TFT_BL, HIGH);
             flag_bl = 1;
             wifi_test();
-            lv_delay_ms(500);
             setTimezone();
             ui_begin();
         }
     }
     if (flag_bl) {
       getSerialInput();
+      int loops = 0;
       while (Serial.available() > 0) {
         Serial0.write(Serial.read());
+        if (++loops > 64) {
+          break;
+        }
       }
     }
 }
@@ -337,7 +341,7 @@ void wifi_test(void)
         text = "no networks found";
     } else {
         text = n;
-        text += " networks found\n";
+        text += " networks found\r\n";
         for (int i = 0; i < n; ++i) {
             text += (i + 1);
             text += ": ";
@@ -345,7 +349,7 @@ void wifi_test(void)
             text += " (";
             text += WiFi.RSSI(i);
             text += ")";
-            text += (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? " \n" : "*\n";
+            text += (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) ? " \r\n" : "*\r\n";
             lv_delay_ms(10);
         }
     }
@@ -364,11 +368,11 @@ void wifi_test(void)
 
     lv_label_set_text(log_label, text.c_str());
     Serial.println(text);
-    lv_delay_ms(2000);
+    lv_delay_ms(500);
     text = "Connecting to ";
     Serial.print("Connecting to ");
     text += (char *)(current_conf.sta.ssid);
-    text += "\n";
+    text += "\r\n";
     Serial.print((char *)(current_conf.sta.ssid));
 
     uint32_t last_tick              = millis();
@@ -493,7 +497,7 @@ sQIwJonMaAFi54mrfhfoFNZEfuNMSQ6/bIBiNLiyoX46FohQvKeIoJ99cx7sUkFN
         }
         delete client;
     }
-    for (uint32_t i = 0; i < sizeof(zones); i++) {
+    for (uint32_t i = 0; i < sizeof(zones); ++i) {
         if (timezone == "" || timezone == "None") {
             timezone = "CST-8";
             break;
@@ -531,28 +535,46 @@ bool getLocalTimeHandler(struct tm * info, uint32_t ms)
 }
 
 String getSerialInput() {
+  //Serial.println("Started getSerialInput()");
   int bytes_received = 0;
   int bytes_available = 0;
+  int bytes_added_during_coloring = 0;
   int serial_line_count = 0;
+  int offset_index_by = 0;
+  bool should_refresh = false;
   String command_line = "";
+  String color_str = "";
+  String reset_str = "";
+
+  //const char* color_cstr = NULL;
   char command_buffer[2550] = { 0 };
   
   //memset(command_buffer, '\0', 2550);
 
-  if (Serial0.available() > 0 && serial_buffer_idx < 2550) {
+  if (Serial0.available() > 0 && serial_buffer_idx < 2295) {
     bytes_available = Serial0.available();
     //Serial.println("Should have bytes available: " + bytes_available);
-    int bytes_to_read = bytes_available < (2549 - serial_buffer_idx) ? bytes_available : (2549 - serial_buffer_idx);
+    // leave a little room at the end of the buffer ... ~80 bytes? ... for coloring
+    int bytes_to_read = bytes_available < (2469 - serial_buffer_idx) ? bytes_available : (2469 - serial_buffer_idx);
+    bytes_to_read = bytes_to_read > SERIAL_BYTES_PER_READ ? (bytes_to_read > SERIAL_BUFFER_ACCEL_THRESHOLD ? (bytes_to_read > SERIAL_MAX_BYTES_PER_READ ? SERIAL_MAX_BYTES_PER_READ : bytes_to_read) : SERIAL_BYTES_PER_READ) : bytes_to_read;
     bytes_received = Serial0.readBytes(&(serial_buffer[serial_buffer_idx]), bytes_to_read);
 
+    if (serial_buffer_idx >= 2549) {
+      //Serial0.println("Serial buffer overrun?");
+      Serial.println("Serial buffer full!");
+    }
+
+    // just echo out the raw bytes we got for passthrough serial
+    Serial.write(&(serial_buffer[serial_buffer_idx]), bytes_received);
+
     // Echo what we just got to the terminal
-    for (int i = serial_buffer_idx; i < serial_buffer_idx + bytes_received; i++) {
+    for (int i = serial_buffer_idx; i < serial_buffer_idx + bytes_received + bytes_added_during_coloring && i < 2550; ++i) {
       // Support backspace
       if (serial_buffer[i] == '\x7f') {
         // j starts at i + 1 which is the next
         // valid character. We skip copying the
         // backspace Ox7f character.
-        for (int j = i + 1; j < 2550; j++) {
+        for (int j = i + 1; j < 2550; ++j) {
           if (j <= 1) {
             break;
           } else if (j == 2549 || j > serial_buffer_idx + bytes_received) {
@@ -561,19 +583,115 @@ String getSerialInput() {
             serial_buffer[j-2] = serial_buffer[j];
           }
         }
-        if (serial_buffer_idx > 0) {
-          Serial.print('\b');
-          Serial.print(' ');
-          Serial.print('\b');
-        }
+        // if (serial_buffer_idx > 0) {
+        //   // send cursor back on serial console, blank previous character, send cursor back once more
+        //   //Serial.print('\b');
+        //   Serial.print(' ');
+        //   Serial.print('\b');
+        // }
         // This is kinda weird because we decrement serial_buffer_idx ...
         // there's a better way to do this I'm sure. TODO(jstockdale): Fix me!
-        serial_buffer_idx = (serial_buffer_idx >= 1) ? serial_buffer_idx - 2 : (bytes_received == 1) ? -1 : 0;
-        // send cursor back on serial console, blank previous character, send cursor back once more
+        serial_buffer_idx = (serial_buffer_idx > 1) ? serial_buffer_idx - 1 : 0;
+        bytes_received = bytes_received - 1 > 0 ? bytes_received - 1 : 0;
+        should_refresh = true;
+
+      } else if (serial_buffer[i] == '\x1b') {
+        // support basic coloring \033[xxmText\033[0mx
+        if (serial_buffer[i + 1] == '[') {
+          // in a formatting block
+          if (serial_buffer[i + 2] == '0' && serial_buffer[i + 3] == 'm') {
+            // reset color
+            if (serial_buffer_idx > 1 && serial_buffer[i - 1] == '\n') {
+              // a leading reset will cause issues so don't emit
+              // just remove four characters from the buffer
+              for (int j = i + 4; j < 2550; ++j) {
+                serial_buffer[j - 4] = serial_buffer[j];
+                serial_buffer[j] = '\0';
+              }
+              bytes_added_during_coloring -= 4;
+              offset_index_by -= 1;
+            } else {
+              reset_str = "# ";
+              // remove two characters from the buffer
+              for (int j = i + 4; j < 2550; ++j) {
+                serial_buffer[j - 2] = serial_buffer[j];
+                serial_buffer[j] = '\0';
+              }
+              bytes_added_during_coloring -= 2;
+              for (int j = 0; j < 2 && i + j < 2550; ++j) {
+                if (i + j == 2549) {
+                  serial_buffer[i + j] = '\0';
+                } else {
+                  serial_buffer[i + j] = reset_str.c_str()[j];
+                  //Serial.print(serial_buffer[i + j]);
+                }
+              }
+              offset_index_by += 1;
+            }
+          } else if (serial_buffer[i + 2] == '3') {
+            // foreground color
+            if (serial_buffer[i + 3] == '0') {
+              // black
+              color_str = "#000000 ";
+              //Serial.println("ANSI color black");
+            } else if (serial_buffer[i + 3] == '1') {
+              // red
+              color_str = "#ff0000 ";
+              //Serial.println("ANSI color red");
+            } else if(serial_buffer[i + 3] == '2') {
+              //green
+              color_str = "#00ff00 ";
+              //Serial.println("ANSI color green");
+            } else if(serial_buffer[i + 3] == '3') {
+              //yellow
+              color_str = "#ffff00 ";
+              //Serial.println("ANSI color yellow");
+            } else if(serial_buffer[i + 3] == '4') {
+              //blue
+              color_str = "#0000ff ";
+              //Serial.println("ANSI color blue");
+            } else if(serial_buffer[i + 3] == '5') {
+              //magenta
+              color_str = "#ff00ff ";
+              //Serial.println("ANSI color magenta");
+            } else if(serial_buffer[i + 3] == '6') {
+              //cyan
+              color_str = "#00ffff ";
+              //Serial.println("ANSI color cyan");
+            } else if(serial_buffer[i + 3] == '7') {
+              //white
+              color_str = "#ffffff ";
+              //Serial.println("ANSI color white");
+            } else {
+              // default
+              color_str = "#ffffff ";
+              //Serial.println("ANSI color default");
+            }
+            // add three character spaces to the buffer
+            for (int j = 2549; j > i + 7; --j) {
+                serial_buffer[j] = serial_buffer[j - 3];
+                serial_buffer[j - 3] = '\0';
+            }
+            bytes_added_during_coloring += 3;
+            //color_cstr = color_str.c_str();
+            for (int j = 0; j < 8 && i + j < 2550; ++j) {
+              if (i + j == 2549) {
+                serial_buffer[i + j] = '\0';
+              } else {
+                serial_buffer[i + j] = color_str.c_str()[j];
+                //Serial.print(serial_buffer[i + j]);
+              }
+            }
+            offset_index_by += 7;
+          }
+        }
       } else {
-        Serial.print(serial_buffer[i]);
+        //Serial.print(serial_buffer[i]);
       }
+      i += offset_index_by;
+      offset_index_by = 0;
     }
+  
 
     // char received[255] = { 0 };
     // for(int i = 0; i < bytes_received; ++i) {
@@ -584,23 +702,22 @@ String getSerialInput() {
     //   }
     // }
 
-    serial_buffer_idx += bytes_received;
+    serial_buffer_idx += bytes_received + bytes_added_during_coloring;
     
-    if (serial_buffer_idx < 2549) {
-      //serial_buffer[serial_buffer_idx+1] = '\0';
-    } else if (serial_buffer_idx >= 2549) {
-      //Serial0.println("Serial buffer overrun?");
-      Serial.println("Serial buffer overrun?");
+    if (serial_buffer_idx > 2549) {
+      Serial.println("Evicting bytes from buffer after coloring, lost bytes: " + String(serial_buffer_idx - 2549));
+      serial_buffer_idx = 2549;
     }
+    
     //Serial.println("Received bytes over serial: " + String(bytes_received));
     //Serial.print(received);
-//    Serial0.println("Buffer: " + String(serial_buffer));
+    //Serial0.println("Buffer: " + String(serial_buffer));
     //Serial.println("Buffer idx: " + String(serial_buffer_idx));
   }
 
   int index_of_newline = -1;
 
-  for (int i = 0; i < serial_buffer_idx; i++) {
+  for (int i = 0; i < serial_buffer_idx; ++i) {
     if (serial_buffer[i] == '\n') {
       ++serial_line_count;
     }
@@ -640,7 +757,7 @@ String getSerialInput() {
       ++index_of_newline;
     }
 
-    if (serial_line_count > 30 || serial_buffer_idx > 2295) {
+    if (serial_line_count > 12 || serial_buffer_idx > 2295) {
       // Move the unconsumed portion of the buffer over
       // and zero extra bytes.
       //Serial.println("Removing bytes from buffer: " + String(index_of_newline));
@@ -657,11 +774,11 @@ String getSerialInput() {
 
       //Serial.println("New buffer idx: " + String(serial_buffer_idx));
       
-      if (serial_buffer_idx < 1275) {
-        lv_delay_ms(100);
-      } else if (serial_buffer_idx < 1575) {
-        lv_delay_ms(33);
-      }
+      // if (serial_buffer_idx < 1275) {
+      //   lv_delay_ms(100);
+      // } else if (serial_buffer_idx < 1575) {
+      //   lv_delay_ms(33);
+      // }
     }
 
     //if (command_line != "\n") command_line.trim();
@@ -676,8 +793,15 @@ String getSerialInput() {
   } else {
     command_line = "";
   }
-  if (bytes_received > 0) {
+  if (bytes_received > 0 || should_refresh) {
     update_serial_display();
+    if (serial_buffer_idx < 760 && Serial0.available() < SERIAL_BUFFER_ACCEL_THRESHOLD) {
+      lv_delay_ms(100);
+    } else if (serial_buffer_idx < 1275 && Serial0.available() < SERIAL_BUFFER_ACCEL_THRESHOLD) {
+      lv_delay_ms(50);
+    } else if (serial_buffer_idx < 1785 && Serial0.available() < SERIAL_BUFFER_ACCEL_THRESHOLD) {
+      lv_delay_ms(25);
+    }
   };
   return command_line;
 }
