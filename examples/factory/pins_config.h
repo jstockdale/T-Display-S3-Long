@@ -8,6 +8,7 @@
 #define TFT_SPI_HOST          SPI2_HOST
 
 #define SERIAL_BAUD_RATE               115200
+#define BUFFER_SIZE                    2550
 #define SERIAL_BYTES_PER_READ          128
 #define SERIAL_MAX_BYTES_PER_READ      1024
 #define SERIAL_RX_BUFFER_SIZE          2048

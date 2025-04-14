@@ -96,7 +96,7 @@ void ui_switch_page(void)
 {
     static uint8_t n;
     n++;
-    lv_obj_set_tile_id(dis, 0, n % UI_PAGE_COUNT, LV_ANIM_ON);
+    lv_obj_set_tile_id(dis, n % UI_PAGE_COUNT, 0, LV_ANIM_ON);
 }
 
 static volatile bool smartConfigStart      = false;
@@ -168,11 +168,11 @@ void ui_begin()
     // lv_obj_remove_style(dis, 0, LV_PART_SCROLLBAR);
     lv_obj_set_style_bg_color(dis, lv_color_black(), LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    lv_obj_t *tv1 = lv_tileview_add_tile(dis, 0, 0, LV_DIR_VER);
-    lv_obj_t *tv2 = lv_tileview_add_tile(dis, 0, 1, LV_DIR_VER);
-    lv_obj_t *tv3 = lv_tileview_add_tile(dis, 0, 2, LV_DIR_VER);
-    lv_obj_t *tv4 = lv_tileview_add_tile(dis, 0, 3, LV_DIR_VER);
-    lv_obj_t *tv5 = lv_tileview_add_tile(dis, 0, 4, LV_DIR_VER);
+    lv_obj_t *tv1 = lv_tileview_add_tile(dis, 0, 0, LV_DIR_HOR);
+    lv_obj_t *tv2 = lv_tileview_add_tile(dis, 1, 0, LV_DIR_HOR);
+    lv_obj_t *tv3 = lv_tileview_add_tile(dis, 2, 0, LV_DIR_HOR);
+    lv_obj_t *tv4 = lv_tileview_add_tile(dis, 3, 0, LV_DIR_HOR);
+    //lv_obj_t *tv5 = lv_tileview_add_tile(dis, 4, 0, LV_DIR_VER);
 
 #if (CLOCK_DEMO == CLOCK_FLIP)          // demo1
     img1 = lv_gif_create(tv2);
@@ -427,15 +427,20 @@ void ui_begin()
     lv_obj_set_pos(btn, 205, 120);
 
     /* page 5 */
-    lv_obj_t *serial_label;
-    serial_label = lv_label_create(tv1);
+    lv_obj_t *serial_container;
+    serial_container = lv_obj_create(tv1);
+    lv_obj_set_size(serial_container, 640, 900);
+
+    lv_obj_t * serial_label = lv_label_create(serial_container);
     lv_label_set_long_mode(serial_label, LV_LABEL_LONG_WRAP);
-    lv_obj_set_width(serial_label, LV_PCT(100));
+    lv_obj_set_size(serial_label, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_scroll_dir(serial_label, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(serial_label, LV_SCROLLBAR_MODE_ACTIVE);
     lv_obj_set_style_text_color(serial_label, UI_FONT_COLOR, LV_PART_MAIN);
     lv_label_set_text_fmt(serial_label, "Serial monitor ready ... (%d baud)", SERIAL_BAUD_RATE);
     lv_obj_add_event_cb(serial_label, update_serial_subscriber_cb, LV_EVENT_MSG_RECEIVED, NULL);
     lv_msg_subsribe_obj(MSG_NEW_SERIAL, serial_label, NULL);
-    lv_obj_align(serial_label, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_align(serial_label, LV_ALIGN_BOTTOM_LEFT, 0, 0);
     //lv_obj_align(serial_label, LV_ALIGN_TOP_MID, 0, 0);
 }
 

@@ -16,6 +16,7 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <SD.h>
+#include "FS.h"
 #include "HardwareSerial.h"
 #include "freertos/semphr.h"
 SemaphoreHandle_t xSemaphore = NULL;
@@ -42,7 +43,7 @@ uint8_t ALS_ADDRESS = 0x3B;
 
 //HardwareSerial Serial0 ( 1 );
 
-char serial_buffer[2550] = { 0 };
+char serial_buffer[BUFFER_SIZE] = { 0 };
 int serial_buffer_idx = 0;
 
 #define AXS_TOUCH_ONE_POINT_LEN 6
@@ -218,7 +219,7 @@ void setup()
     disp_drv.flush_cb     = my_disp_flush;
     disp_drv.draw_buf     = &draw_buf;
     disp_drv.sw_rotate    = 1;          // If you turn on software rotation, Do not update or replace LVGL
-    disp_drv.rotated      = LV_DISP_ROT_90;
+    disp_drv.rotated      = LV_DISP_ROT_270;
     disp_drv.full_refresh = 1;          // full_refresh must be 1
     lv_disp_drv_register(&disp_drv);
 
@@ -547,19 +548,19 @@ String getSerialInput() {
   String reset_str = "";
 
   //const char* color_cstr = NULL;
-  char command_buffer[2550] = { 0 };
+  char command_buffer[BUFFER_SIZE] = { 0 };
   
-  //memset(command_buffer, '\0', 2550);
+  //memset(command_buffer, '\0', BUFFER_SIZE);
 
-  if (Serial0.available() > 0 && serial_buffer_idx < 2295) {
+  if (Serial0.available() > 0 && serial_buffer_idx < (BUFFER_SIZE * 0.9)) {
     bytes_available = Serial0.available();
     //Serial.println("Should have bytes available: " + bytes_available);
     // leave a little room at the end of the buffer ... ~80 bytes? ... for coloring
-    int bytes_to_read = bytes_available < (2469 - serial_buffer_idx) ? bytes_available : (2469 - serial_buffer_idx);
+    int bytes_to_read = bytes_available < ((BUFFER_SIZE * 0.95) - serial_buffer_idx) ? bytes_available : ((BUFFER_SIZE * 0.95) - serial_buffer_idx);
     bytes_to_read = bytes_to_read > SERIAL_BYTES_PER_READ ? (bytes_to_read > SERIAL_BUFFER_ACCEL_THRESHOLD ? (bytes_to_read > SERIAL_MAX_BYTES_PER_READ ? SERIAL_MAX_BYTES_PER_READ : bytes_to_read) : SERIAL_BYTES_PER_READ) : bytes_to_read;
     bytes_received = Serial0.readBytes(&(serial_buffer[serial_buffer_idx]), bytes_to_read);
 
-    if (serial_buffer_idx >= 2549) {
+    if (serial_buffer_idx >= (BUFFER_SIZE - 1)) {
       //Serial0.println("Serial buffer overrun?");
       Serial.println("Serial buffer full!");
     }
@@ -574,10 +575,10 @@ String getSerialInput() {
         // j starts at i + 1 which is the next
         // valid character. We skip copying the
         // backspace Ox7f character.
-        for (int j = i + 1; j < 2550; ++j) {
+        for (int j = i + 1; j < BUFFER_SIZE; ++j) {
           if (j <= 1) {
             break;
-          } else if (j == 2549 || j > serial_buffer_idx + bytes_received) {
+          } else if (j == (BUFFER_SIZE - 1) || j > serial_buffer_idx + bytes_received) {
             serial_buffer[j] = '\0';
           } else {
             serial_buffer[j-2] = serial_buffer[j];
@@ -604,7 +605,7 @@ String getSerialInput() {
             if (serial_buffer_idx > 1 && serial_buffer[i - 1] == '\n') {
               // a leading reset will cause issues so don't emit
               // just remove four characters from the buffer
-              for (int j = i + 4; j < 2550; ++j) {
+              for (int j = i + 4; j < BUFFER_SIZE; ++j) {
                 serial_buffer[j - 4] = serial_buffer[j];
                 serial_buffer[j] = '\0';
               }
@@ -613,13 +614,13 @@ String getSerialInput() {
             } else {
               reset_str = "# ";
               // remove two characters from the buffer
-              for (int j = i + 4; j < 2550; ++j) {
+              for (int j = i + 4; j < BUFFER_SIZE; ++j) {
                 serial_buffer[j - 2] = serial_buffer[j];
                 serial_buffer[j] = '\0';
               }
               bytes_added_during_coloring -= 2;
-              for (int j = 0; j < 2 && i + j < 2550; ++j) {
-                if (i + j == 2549) {
+              for (int j = 0; j < 2 && i + j < BUFFER_SIZE; ++j) {
+                if (i + j == (BUFFER_SIZE - 1)) {
                   serial_buffer[i + j] = '\0';
                 } else {
                   serial_buffer[i + j] = reset_str.c_str()[j];
@@ -668,14 +669,14 @@ String getSerialInput() {
               //Serial.println("ANSI color default");
             }
             // add three character spaces to the buffer
-            for (int j = 2549; j > i + 7; --j) {
+            for (int j = (BUFFER_SIZE - 1); j > i + 7; --j) {
                 serial_buffer[j] = serial_buffer[j - 3];
                 serial_buffer[j - 3] = '\0';
             }
             bytes_added_during_coloring += 3;
             //color_cstr = color_str.c_str();
-            for (int j = 0; j < 8 && i + j < 2550; ++j) {
-              if (i + j == 2549) {
+            for (int j = 0; j < 8 && i + j < BUFFER_SIZE; ++j) {
+              if (i + j == (BUFFER_SIZE - 1)) {
                 serial_buffer[i + j] = '\0';
               } else {
                 serial_buffer[i + j] = color_str.c_str()[j];
@@ -704,9 +705,9 @@ String getSerialInput() {
 
     serial_buffer_idx += bytes_received + bytes_added_during_coloring;
     
-    if (serial_buffer_idx > 2549) {
-      Serial.println("Evicting bytes from buffer after coloring, lost bytes: " + String(serial_buffer_idx - 2549));
-      serial_buffer_idx = 2549;
+    if (serial_buffer_idx > (BUFFER_SIZE - 1)) {
+      Serial.println("Evicting bytes from buffer after coloring, lost bytes: " + String(serial_buffer_idx - (BUFFER_SIZE - 1)));
+      serial_buffer_idx = (BUFFER_SIZE - 1);
     }
     
     //Serial.println("Received bytes over serial: " + String(bytes_received));
@@ -737,7 +738,7 @@ String getSerialInput() {
         //Serial.println("Found \"newline\" at index: " + String(index_of_newline));
       }
     }
-    if (i == 2549) {
+    if (i == (BUFFER_SIZE - 1)) {
       command_buffer[i] = '\0';
     } else {
       command_buffer[i] = serial_buffer[i];
@@ -757,11 +758,11 @@ String getSerialInput() {
       ++index_of_newline;
     }
 
-    if (serial_line_count > 12 || serial_buffer_idx > 2295) {
+    if (serial_line_count > 12 || serial_buffer_idx > (BUFFER_SIZE * 0.9)) {
       // Move the unconsumed portion of the buffer over
       // and zero extra bytes.
       //Serial.println("Removing bytes from buffer: " + String(index_of_newline));
-      for (int i = index_of_newline + 1; i < 2550; ++i) {
+      for (int i = index_of_newline + 1; i < BUFFER_SIZE; ++i) {
         // Copy any characters we have after the newline, if they exist
         serial_buffer[i - (index_of_newline + 1)] = serial_buffer[i];
         serial_buffer[i] = '\0';
@@ -782,12 +783,12 @@ String getSerialInput() {
     }
 
     //if (command_line != "\n") command_line.trim();
-  } else if (index_of_newline == -1 && serial_buffer_idx == 2549) {
+  } else if (index_of_newline == -1 && serial_buffer_idx == (BUFFER_SIZE - 1)) {
     // flush buffer if we're full; don't let it overrun
     //Serial0.println("Serial buffer full! Processing command and flushing buffer.");
     Serial.println("Serial buffer full! Processing command and flushing buffer.");
     serial_buffer_idx = 0;
-    for (int i = 0; i < 2550; ++i) {
+    for (int i = 0; i < BUFFER_SIZE; ++i) {
       serial_buffer[i] = '\0';
     }
   } else {
@@ -795,11 +796,11 @@ String getSerialInput() {
   }
   if (bytes_received > 0 || should_refresh) {
     update_serial_display();
-    if (serial_buffer_idx < 760 && Serial0.available() < SERIAL_BUFFER_ACCEL_THRESHOLD) {
+    if (serial_buffer_idx < (BUFFER_SIZE * 0.33) && Serial0.available() < SERIAL_BUFFER_ACCEL_THRESHOLD) {
       lv_delay_ms(100);
-    } else if (serial_buffer_idx < 1275 && Serial0.available() < SERIAL_BUFFER_ACCEL_THRESHOLD) {
+    } else if (serial_buffer_idx < (BUFFER_SIZE * 0.5) && Serial0.available() < SERIAL_BUFFER_ACCEL_THRESHOLD) {
       lv_delay_ms(50);
-    } else if (serial_buffer_idx < 1785 && Serial0.available() < SERIAL_BUFFER_ACCEL_THRESHOLD) {
+    } else if (serial_buffer_idx < (BUFFER_SIZE * 0.66) && Serial0.available() < SERIAL_BUFFER_ACCEL_THRESHOLD) {
       lv_delay_ms(25);
     }
   };

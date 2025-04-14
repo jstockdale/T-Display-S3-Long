@@ -19,5 +19,5 @@ void ui_switch_page(void);
 void update_serial_display();
 
 extern char timezone_name[255];
-extern char serial_buffer[2550];
+extern char serial_buffer[BUFFER_SIZE];
 
